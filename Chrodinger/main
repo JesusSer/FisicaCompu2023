@@ -1,0 +1,157 @@
+# Aquí vamos a desarrollar el código para resolver la ecuación de Schrödinger 
+
+# Discretizamos espacio y tiempo: x_j = jh y t_n = ns, con j yendo de 0 a N
+# La función de onda en cada punto del retículo creado es phi_j,n 
+# Condiciones de contorno: phi_0,n = phi_N,n = 0. Esto implica X_N = X_0 = 0
+
+# Usamos el algoritmo phi_j,n+1 = frac(1-(isH_d)/2)(1+(isH_d)/2) * phi_j,n
+# Llegamos a un sistema del tipo X_j+1,n + [-2+2i/s-V_jgorrito]X_j,n + X_j-1,n = 4*i*phi_j,n/sgorrito
+# Tomamos los cambios sgorrito = s/h^2 y V_jgorrito = h^2*V_j
+
+# Aparecerán en la resolución del sistema triangular otras constantes alpha y beta
+# Alpha es constante en el tiempo
+# Tomamos como función de onda inicial una onda con amplitud gaussiana
+# La ecuación de la gaussiana es phi(x,0) = e^(i(k_0)x)e^(-(x-x_0)^2/(2*sigma^2))
+
+# Debemos dar un parámetro nciclos para obtener k_0 de modo que (k_0)*N*h = 2*pi*nciclos
+# nciclos va de 1 a N/4, así un ciclo tendrá 4 puntos como mínimo
+# Podemos dar como valores iniciales: x_0 = N*h/4 y sigma = H*h/16, aunque es recomendable escribir la función de onda
+# inicial de maner genérica y jugar con x_0 y sigma
+
+# El potencial que usaremos tendrá una anchura de N/5 y estará centrado en N/2, con una altura proporcional ala energía de la onda
+# incidente, por ejemplo, altura = lambda * (k_0)^2, con lambda = 0.3
+
+# Así, la función de onda en el retículo quedará phi(x,0) = e^(i(k_0gorrito)j)e^(-8(4j-N)^2/N^2), con k_0gorrito = (k_0)*h
+# El potencial queda V_jgorrito = (V_j)*h= [0] si j no está en (2N/5, 3N/5) ó lambda * (k_0gorrito)^2 en el resto de los casos
+
+# Tomaremos sgorrito = 1/(4*(k_0gorrito)^2)
+
+# Así, al principio solo tenemos que definir N, nciclos y lambda
+
+# El algoritmo será:
+# 1 -> Doy los parámetros N, nciclos y lambda. Con ellos genero sgorrito, k_0gorrito, V_jgorrito, phi_j,0, condiciones de contorno y alpha
+# 2 -> Calculo beta
+# 3 -> Calculo X
+# 4 -> Calculo phi_j,n+1
+# 5 -> n = n+1, vuelvo a 2
+
+# -------------------- EMPIEZO CON EL CÓDIGO ---------------
+
+# Incluyo las librerías necesarias
+
+import numpy as np 
+
+# Defino los parámetros iniciales, constantes e inicializo matrices y/o vectores
+
+PI = np.pi              # Guardo el valor de pi
+N = 100                 # Número de divisiones del espacio
+nciclos = N / 4         # Número de ciclos
+valorlambda = 0.3       # Valor de lambda
+ondainicial = []        # Vector para guardar las distribuciones iniciales
+vgorrito = []           # Vector para guardar los potenciales
+imaginario = 1.0j       # Unidad imaginaria    
+norma = 0.0             # Variable para calcular la norma de la función de onda y ver si se conserva  
+
+vectoralpha = [None] * N     # Inicializo el vecor para guardar los valores de alpha
+
+calcauxiliar = 0.0      # Número auxiliar para realizar calculitos
+
+vectorbeta = [None] * N     # Inicializo el vecor para guardar los valores de beta
+
+vectorchi = [None] * (N + 1)      # Inicializo el vector para guardar los valores de chi
+
+vectorposiciones = [None] * (N + 1)   # Divido el intervalor del 1 en N + 1 posiciones
+
+for i in range(N + 1):
+    vectorposiciones[i] = i * 1.0 / N
+
+vectoronda = [None] * (N + 1)
+
+# Calculo el resto de parámetros
+
+kgorrito = 2 * PI* nciclos / N
+sgorrito = 1 / (4 * (kgorrito ** 2))
+valorvgorrito = valorlambda * (kgorrito ** 2)
+
+# Calculo el vector del potencial
+
+liminf = 2 * N / 5
+limsup = 3 * N / 5
+
+for i in range(N + 1):
+    if liminf <= i <= limsup:
+        vgorrito.append(valorvgorrito)
+    else:
+        vgorrito.append(0.0)
+
+# Calculo el vector de onda para t = 0
+
+ondainicial.append(0.0j)
+for i in range(1, N):
+    ondainicial.append(np.exp(i * kgorrito * imaginario) * np.exp((-8 * (4 * i - N)**2)/(N**2)))
+ondainicial.append(0.0j)
+
+# Calculo el valor del vector alpha. Empiezo por el final: alpha_N-1 = 0
+
+vectoralpha[N - 1] = 0.0j
+
+for i in range(2, N + 1):
+    calcauxiliar = -1.0 / (-2 + (2 * imaginario / sgorrito) - vgorrito[N - i + 1] + vectoralpha[N - i + 1])
+    vectoralpha[N - i] = calcauxiliar
+
+# Inicializo los archivos para escribir datos
+
+resultados = open('representacion.txt', 'w')
+normal = open('conservacionorma.txt', 'w')
+
+# Inicializo el bucle for para ir cambiando la onda e ir apuntando en archivos
+
+for k in range(1000):
+
+    # Escribo todo lo que tengo en archivos 
+
+    for i in range(N + 1):
+
+        vectoronda[i] = (abs(ondainicial[i])) ** 2
+
+        norma = norma + vectoronda[i]
+
+        resultados.write(str(vectorposiciones[i]) + ', ' + str(vgorrito[i]) + ', ' + str(vectoronda[i]) + '\n')
+
+    normal.write(str(norma) + '\n')
+
+    norma = 0.0
+
+    # Hago un salto de línea extra para separar tiempos
+
+    resultados.write('\n')
+
+    # Calculo ahora el vector de betas. Vuelvo a empezar por el final: beta_N-1 = 0
+
+    vectorbeta[N - 1] = 0.0j
+
+    for i in range(2, N + 1):
+        vectorbeta[N - i] = vectoralpha[N - i] * (vectorbeta[N - i + 1] - 4 * imaginario * ondainicial[N - i + 1]/sgorrito)
+
+    # Calculo ahora el vector chi para tiempo n
+
+    vectorchi[0] = 0.0j
+    vectorchi[N] = 0.0j
+
+    for i in range(1, N):
+        vectorchi[i] = vectoralpha[i - 1] * vectorchi[i - 1] + vectorbeta[i - 1]
+
+    # Calculo la nueva onda
+
+    for i in range(N + 1):
+        ondainicial[i] = vectorchi[i] - ondainicial[i]
+
+resultados.close()
+normal.close()
+
+
+
+
+
+
+

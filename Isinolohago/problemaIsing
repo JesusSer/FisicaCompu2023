@@ -1,0 +1,104 @@
+# Aquí vamos a realizar el problema principal. Comenzamos importando
+# las librerías necesarias 
+
+import random       # Para generar números aleatorios
+import numpy as np  # Para definir las matrices y trabajar fácil con ellas
+
+# Definimos las variables necesarias para después
+
+opcion = 1      # Parámetro para elegir si queremos que se genere el cuadro de 1 o aleatoriamente
+n = 100         # Dimensión del cuadro (lado). Será una cuadrícula n * n
+temperatura  = 0.5    # Temperatura del sistema
+
+# Declaración del cuadro de spines para poder rellenarlo después
+
+cuadro = [None] * n
+for i in range(n):
+    cuadro[i] = [None] * n
+
+
+if (opcion == 0):
+    for i in range(n):
+        for j in range(n):
+            cuadro[i][j] = 1  # Crea una matriz de 10x10 de unos
+else:
+    for i in range(n):
+        for j in range(n):
+            cuadro[i][j] = random.choice([-1, 1])
+
+# Abro el archivo en el que voy a escribir
+
+archivo2 = open('datosmontecarlo.txt', 'w')
+
+# Inicializo el contador para imprimir los pasos Montecarlo
+
+contador = n ** 2 # Lo inicializo en 25 para poder imprimir el primer paso
+
+# Comienzo el bucle a repetir muchas veces usando n^2 como paso base para imprimir
+
+for i in range(4000 * n * n):
+
+    # Escribo la matriz cada n**2 pasos para dibujar la evolución del sistema
+
+    if (contador == n ** 2):
+        for j in range(n):
+            for k in range(n):
+                if k < (n - 1):
+                    archivo2.write(str(cuadro[j][k]) + ', ')
+                else:
+                    archivo2.write(str(cuadro[j][k]) + '\n')
+        
+        contador = 0
+        archivo2.write('\n')
+
+    contador = contador + 1     # Voy aumentando para el paso montecarlo
+
+    # Escojo un punto al azar del sistema
+
+    fila = random.randint(0, n - 1)
+    columna = random.randint(0, n - 1)
+
+    # Declaro las posiciones de contorno
+
+    norte = fila + 1 
+    sur = fila - 1
+    este = columna + 1
+    oeste = columna - 1
+
+    # Determino condiciones de contorno
+
+    if norte == n:
+        norte = 0
+
+    if sur == -1:
+        sur = n - 1
+
+    if este == n:
+        este = 0
+
+    if oeste == -1:
+        oeste = n - 1
+
+    # Cálculo de Incremento de Energía
+
+    energia = 2 * cuadro[fila][columna] * (cuadro[norte][columna] + cuadro[sur][columna] + cuadro[fila][este] + cuadro[fila][oeste])
+
+    # Cálculo de p
+
+    p =  np.exp(np.float128(-1.0 * energia / temperatura))  
+
+    # Comprobamos si p > 1. En tal caso, cambiamos su valor a 1
+
+    if p > 1:
+        p = 1
+
+    # Generamos un número aleatorio entre 0 y 1 y comparamos con p. Si es menor, cambiamos el valor del spin
+
+    epsilon = random.uniform(0.0, 1.0)
+
+    if epsilon < p :
+        cuadro[fila][columna] = -1 * cuadro[fila][columna]
+
+# Cierro los archivos abiertos
+
+archivo2.close()

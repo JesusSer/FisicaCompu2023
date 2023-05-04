@@ -1,0 +1,353 @@
+# Aquí desarrollo el archivo principal
+
+import numpy as np      # Importamos librería necesaria para np.loadtxt y raíz cuadrada
+
+RADIO_TIERRA = 149.6e9  # Definimos constantes necesarias
+MASA_SOL = 1.989e30
+GRAVITACION = 6.67384e-11
+CTE = RADIO_TIERRA / (GRAVITACION * MASA_SOL)
+
+# Definimos las funciones necesarias para realizar los cálculos
+
+# Función para convertir los datos del sistema usual al sistema reescalado
+
+def conversion(matriz1, archivo):         # Definimos la matriz de posiciones, velocidades, masas planetas
+    
+    matriz2 = np.loadtxt(archivo, skiprows = 0) # Rellenamos la matriz auxiliar
+    
+    for i in range(10):
+        matriz1[i][0] = matriz2[i][0] / RADIO_TIERRA
+
+    for i in range(10):
+        matriz1[i][4] = matriz2[i][4] / MASA_SOL
+
+    for i in range(10):
+        matriz1[i][3] = matriz2[i][3] * np.sqrt(CTE)
+
+# Definimos una función módulo para calcular el módulo de un vector para un solo planeta
+
+def modulo (vec_x, vec_y):
+
+    suma = vec_x**2 + vec_y**2
+    norma = np.sqrt(suma)
+
+    return norma
+
+# Definimos la función aceleración en tiempo t
+
+def aceleracion(rad_x, rad_y, mass):
+
+    sum = [0,0,0,0,0,0,0,0,0,0]         # Definimos variable auxilir para ir sumando
+    aux_x = 0.0      # Definimos variable auxiliar para almacenar r_i - r_j
+    aux_y = 0.0
+    mod = 0.0
+
+    for i in range(10):
+        for j in range(10):
+            if j != i:
+               
+               aux_x = (rad_x[i] - rad_x[j])
+               aux_y = (rad_y[i] - rad_y[j])
+               mod = modulo(aux_x, aux_y)
+
+               sum[i] = sum[i] -1.0 * mass[j] * (rad_x[i] - rad_x[j]) / (mod**3)
+
+    return sum
+
+# Definimos una función para evaluar r(t+h), algoritmo de Verlet
+
+def pos_sig (radio, velocidad, aceleracion, parametro):
+
+    nuevo_radio = [0,0,0,0,0,0,0,0,0,0]
+    
+    for i in range(10):
+
+        nuevo_radio[i] = radio[i] + parametro * velocidad[i] + (parametro ** 2) * aceleracion[i] / 2
+
+    return nuevo_radio
+
+# Definimos una función para calcular la energía de todos los planetas
+
+def energia_planeta(masas, velocidadx, velocidady, radiox, radioy):
+
+    energia = [0,0,0,0,0,0,0,0,0,0]         # Definimos una variable para ir almacenando la energía de cada planeta
+    modulovel = 0.0
+    aux_x = 0.0
+    aux_y = 0.0
+
+    for i in range(10):
+    
+        modulovel = modulo(velocidadx[i], velocidady[i])  # Calculamos el módulo de la velocidad para la energía cinética del planeta
+        energia[i] = (masas[i] * (modulovel**2))/2
+
+
+        for j in range(10):
+           if j != i:
+               
+               aux_x = (radiox[i] - radiox[j])
+               aux_y = (radioy[i] - radioy[j])
+               mod = modulo(aux_x, aux_y)
+
+               energia[i] = energia[i] -1.0 * masas[i] * masas[j] / mod
+
+    return energia
+
+# Devuelve un vector con la energía de cada planeta ordenados
+
+# Inicializamos valores a usar después
+
+fichero = "rvym.txt"    # Fichero de datos sin convertir
+matriz = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
+r_x = [0,0,0,0,0,0,0,0,0,0]     # Posición en el eje X
+r_y = [0,0,0,0,0,0,0,0,0,0]     # Posición en el eje Y 
+v_x = [0,0,0,0,0,0,0,0,0,0]     # Velocidad en el eje X
+v_y = [0,0,0,0,0,0,0,0,0,0]     # Velocidad en el eje Y
+a_x = [0,0,0,0,0,0,0,0,0,0]     # Aceleración en el eje X
+a_y = [0,0,0,0,0,0,0,0,0,0]     # Aceleración en el eje Y
+a_x_prox = [0,0,0,0,0,0,0,0,0,0]     # Aceleración en el eje X en el paso siguiente (para calcular v con Verlet)
+a_y_prox = [0,0,0,0,0,0,0,0,0,0]     # Aceleración en el eje Y en el paso siguiente (para calcular v con Verlet)
+vec_aux_w_x = [0,0,0,0,0,0,0,0,0,0]  # Vector auxiliar para los cálculos omega en x
+vec_aux_w_y = [0,0,0,0,0,0,0,0,0,0]  # Vector auxiliar para los cálculos omega en y
+masa = [0,0,0,0,0,0,0,0,0,0]    # Masa de cada cuerpo
+t = 0.0                         # Tiempo
+h = 3600 * 24 * np.sqrt(1.0/(CTE * RADIO_TIERRA * RADIO_TIERRA)) # Paso del tiempo (pongo este dato para que sea justo 1 dia y facilite el calculo del periodo)
+r_y_prox = [0,0,0,0,0,0,0,0,0,0]                # Variable auxiliar para calcular el periodo
+energias = [0,0,0,0,0,0,0,0,0,0]                # Matriz para almacenar la energía de cada planeta
+auxiliar_energia = 0.0              # Lo creo para ir sumando las energías y calcular la energía media del planeta
+e_planeta = 0.0         # Lo creo para guardar la energía del planeta correspondiente
+
+# Defino variables necesarias para un sistema geocentrico
+
+geocentro_x = [0,0,0,0,0,0,0,0,0,0]
+geocentro_y = [0,0,0,0,0,0,0,0,0,0]
+
+# Los valores de la matriz de datos estarán ordenados de modo que aparezcan los planetas en orden creciente de distancia
+# al Sol por filas, situando el Sol con sus respectivos datos en la primera fila, e incluyendo Plutón
+
+# Usamos la función conversión para adaptar los datos el sistema reescalado
+
+conversion(matriz, fichero)    
+
+matriz = np.transpose(matriz)       # Trasponemos la matriz para guardarla en los respectivos vectores
+
+# Guardamos los datos iniciales en los vectores que luego iremos reescribiendo
+
+r_x = matriz[0]
+r_y = matriz[1]
+v_x = matriz[2]
+v_y = matriz[3]
+masa = matriz[4]
+
+a_x = aceleracion(r_x, r_y, masa)
+a_y = aceleracion(r_y, r_x, masa)
+
+f = open ('posiciones.txt','w')      # Definimos un archivo para guardar las posiciones en función del tiempo
+interiores = open('pos_int.txt', 'w')   # Definimos un archivo para guardar las posiciones de los planetas interiores
+exteriores = open('pos_ext.txt', 'w')   # Definimos un archivo para guardar las posiciones de los planetas exteriores
+periodos = open('periodos.txt', 'w')
+
+# Creo un archivo para los periodos de cada planeta
+
+p_mercurio = open('p_mercurio.txt', 'w')
+p_venus = open('p_venus.txt', 'w')
+p_tierra = open('p_tierra.txt', 'w')
+p_marte = open('p_marte.txt', 'w')
+p_jupiter = open('p_jupiter.txt', 'w')
+p_saturno = open('p_saturno.txt', 'w')
+p_urano = open('p_urano.txt', 'w')
+p_neptuno = open('p_neptuno.txt', 'w')
+p_pluton = open('p_pluton.txt', 'w')
+
+# Creo varios archivos para guardar las energías de los planetas
+
+energia_media = open('energia_media.txt', 'w')
+e_sol = open('e_sol.txt', 'w')
+e_mercurio = open('e_mercurio.txt', 'w')
+e_venus = open('e_venus.txt', 'w')
+e_tierra = open('e_tierra.txt', 'w')
+e_marte = open('e_marte.txt', 'w')
+e_jupiter = open('e_jupiter.txt', 'w')
+e_saturno = open('e_saturno.txt', 'w')
+e_urano = open('e_urano.txt', 'w')
+e_neptuno = open('e_neptuno.txt', 'w')
+e_pluton = open('e_pluton.txt', 'w')
+
+# Creo un vector de archivos para llamarlos en el bucle (energías)
+
+vector_e = [e_sol, e_mercurio, e_venus, e_tierra, e_marte, e_jupiter, e_saturno, e_urano, e_neptuno, e_pluton]
+
+# Creo un vector de archivos para poder llamarlos en un bucle 
+
+vector_p = [p_mercurio, p_venus, p_tierra, p_marte, p_jupiter, p_saturno, p_urano, p_neptuno, p_pluton]
+
+# Creo varios archivos para escribir las posiciones de un sistema geocéntrico
+
+g_mercurio = open('g_mercurio.txt', 'w')
+g_venus = open('g_venus.txt', 'w')
+g_marte = open('g_marte.txt', 'w')
+g_jupiter = open('g_jupiter.txt', 'w')
+g_saturno = open('g_saturno.txt', 'w')
+g_urano = open('g_urano.txt', 'w')
+g_neptuno = open('g_neptuno.txt', 'w')
+g_pluton = open('g_pluton.txt', 'w')
+
+# Creo un vector de archivos para poder llamarlos en un bucle
+
+# Defino dos variables extra para que el array tenga la misma dimensión y coincida con el de posiciones
+# Así es más fácil trabajar con él
+
+vaciolegal1 = 0
+vaciolegal2 = 0
+
+vector_g = [vaciolegal1, g_mercurio, g_venus, vaciolegal2, g_marte, g_jupiter, g_saturno, g_urano, g_neptuno, g_pluton]
+
+# Ejecuto el bucle para aplicar el algoritmo de Verlet e ir escribiendo los resultados en archivos
+
+for i in range(90000):
+    for j in range(10):
+        f.write(str(r_x[j]) + ', ' + str(r_y[j]) + '\n')
+
+        # Escribo las energías en el archivo correspondiente
+
+        e_planeta = energia_planeta(masa, v_x, v_y, r_x, r_y)
+
+        vector_e[j].write(str(e_planeta[j]) + '\n')
+
+        auxiliar_energia = auxiliar_energia + e_planeta[j]
+
+        if j == 0:
+            interiores.write(str(r_x[j]) + ', ' + str(r_y[j]) + '\n')
+            exteriores.write(str(r_x[j]) + ', ' + str(r_y[j]) + '\n')
+        else:
+            if j < 5:
+                interiores.write(str(r_x[j]) + ', ' + str(r_y[j]) + '\n')
+            else:
+                exteriores.write(str(r_x[j]) + ', ' + str(r_y[j]) + '\n')
+
+        # Calculo las posiciones del sistema geocéntrico
+
+        geocentro_x[j] = r_x[j] - r_x[3]
+        geocentro_y[j] = r_y[j] - r_y[3]
+
+        if (j != 0 and j != 3):
+            vector_g[j].write(str(geocentro_x[0]) + ', ' + str(geocentro_y[0]) + '\n' + 
+                              str(geocentro_x[3]) + ', ' + str(geocentro_y[3]) + '\n' + 
+                              str(geocentro_x[j]) + ', ' + str(geocentro_y[j]) + '\n' + '\n')
+            
+    # Escribo la energía media en el archivo correspondiente
+
+    energia_media.write(str(auxiliar_energia/10.0) + '\n')
+
+    # Reinicio la variable auxiliar de energia
+
+    auxiliar_energia = 0.0
+
+    # Empezamos a aplicar el algoritmo de Verlet
+
+    r_x = pos_sig(r_x, v_x, a_x, h)     # Calculamos x(t+h)
+    r_y_prox = pos_sig(r_y, v_y, a_y, h)     # Calculamos y(t+h)
+
+    # Consideramos en la y una variable para almacenar la anterior para poder calcular el periodo
+
+    # Bucle for para multiplicar un array por un escalar
+    
+    for k in range(10):
+        vec_aux_w_x[k] = v_x[k] + a_x[k] * h / 2.0     # Calculamos w_x auxiliar
+        vec_aux_w_y[k] = v_y[k] + h * a_y[k] / 2.0     # Calculamos w_y auxiliar
+
+    a_x = aceleracion(r_x, r_y_prox, masa)   # Calculamos a_x(t + h)
+    a_y = aceleracion(r_y_prox, r_x, masa)   # Calculamos a_y(t + h)
+
+    # Bucle para multiplicar un array por un escalar y sumar
+
+    for j in range(10):
+        v_x[j] = vec_aux_w_x[j] + h * a_x[j] / 2     # Calculamos v_x(t + h)
+        v_y[j] = vec_aux_w_y[j] + h * a_y[j] / 2     # Calculamos v_y(t + h)
+
+    # Bucle para ir apuntando los periodos de cada planeta
+
+    for j in range(9):
+        if (r_y[j+1] < 0) and (r_y_prox[j+1] > 0):
+            vector_p[j].write(str(t + h/2) + '\n')
+
+    r_y = r_y_prox  # Eliminamos la variable auxiliar de almacenamiento
+    t = t + h
+    f.write('\n')
+    interiores.write('\n')
+    exteriores.write('\n')
+
+# Cierro todos los archivos innecesarios abiertos en modo write
+
+g_mercurio.close()
+g_venus.close()
+g_marte.close()
+g_jupiter.close()
+g_saturno.close()
+g_urano.close()
+g_neptuno.close()
+g_pluton.close()
+
+p_mercurio.close()
+p_venus.close()
+p_tierra.close()
+p_marte.close()
+p_jupiter.close()
+p_saturno.close()
+p_urano.close()
+p_neptuno.close()
+p_pluton.close()
+
+e_mercurio.close()
+e_venus.close()
+e_tierra.close()
+e_marte.close()
+e_jupiter.close()
+e_saturno.close()
+e_urano.close()
+e_neptuno.close()
+e_pluton.close()
+energia_media.close()
+
+# Abro los archivos de periodos para leer sus datos y calcular el periodo medio
+
+p_mercurio = open('p_mercurio.txt', 'r')
+p_venus = open('p_venus.txt', 'r')
+p_tierra = open('p_tierra.txt', 'r')
+p_marte = open('p_marte.txt', 'r')
+p_jupiter = open('p_jupiter.txt', 'r')
+p_saturno = open('p_saturno.txt', 'r')
+p_urano = open('p_urano.txt', 'r')
+p_neptuno = open('p_neptuno.txt', 'r')
+p_pluton = open('p_pluton.txt', 'r')
+
+# Vuelvo a declarar el vector de archivos
+
+vector_p = [p_mercurio, p_venus, p_tierra, p_marte, p_jupiter, p_saturno, p_urano, p_neptuno, p_pluton]
+
+# Escribo en el archivo periodos la media del periodo de cada planeta en días 
+
+periodomedio = [0,0,0,0,0,0,0,0,0]      # Defino un avariable para almacenar el periodo medio
+j = 0
+
+for j in range(9):
+
+    periodomedio[j] = float(vector_p[j].readline()) / h
+
+    periodos.write(str(periodomedio[j]) + '\n') 
+    
+    # No voy a calcular el periodo medio porque sería erróneo porque el sistema se desplaza sobre el 0 inicial (el sol se mueve)
+    # Para calcular el periodo medio de esta forma habria sido necesario recalcular la posición de los planetas con respecto a la del sol
+        
+f.close()
+interiores.close()
+exteriores.close()
+periodos.close()
+p_mercurio.close()
+p_venus.close()
+p_tierra.close()
+p_marte.close()
+p_jupiter.close()
+p_saturno.close()
+p_urano.close()
+p_neptuno.close()
+p_pluton.close()
